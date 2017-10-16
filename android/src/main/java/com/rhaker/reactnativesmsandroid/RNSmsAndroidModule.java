@@ -32,7 +32,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 public class RNSmsAndroidModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
-    private static final String TAG = RNSmsAndroidModule.class.getSimpleName();
+    public static final String TAG = RNSmsAndroidModule.class.getSimpleName();
 
     private ReactApplicationContext reactContext;
 
