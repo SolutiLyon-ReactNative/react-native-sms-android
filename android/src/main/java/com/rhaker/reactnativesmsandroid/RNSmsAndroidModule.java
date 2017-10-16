@@ -31,22 +31,70 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
-
     private static final String TAG = RNSmsAndroidModule.class.getSimpleName();
 
     private ReactApplicationContext reactContext;
 
+    private BroadcastReceiver mReceiver;
+    private boolean isReceiverRegistered = false;
+    
     // set the activity - pulled in from Main
     public RNSmsAndroidModule(ReactApplicationContext reactContext) {
       super(reactContext);
+
       this.reactContext = reactContext;
+
+      mReceiver = new SmsReceiver(reactContext);
+      getReactApplicationContext().addLifecycleEventListener(this);
+      registerReceiverIfNecessary(mReceiver);
     }
 
     @Override
     public String getName() {
       return "SmsAndroid";
     }
+    
+    private void registerReceiverIfNecessary(BroadcastReceiver receiver) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && getCurrentActivity() != null) {
+            getCurrentActivity().registerReceiver(
+						  receiver,
+						  new IntentFilter(Telephony.Sms.Intents.SMS_RECEIVED_ACTION)
+						  );
+            isReceiverRegistered = true;
+            return;
+        }
+	
+        if (getCurrentActivity() != null) {
+            getCurrentActivity().registerReceiver(
+						  receiver,
+						  new IntentFilter("android.provider.Telephony.SMS_RECEIVED")
+						  );
+            isReceiverRegistered = true;
+        }
+    }
 
+    private void unregisterReceiver(BroadcastReceiver receiver) {
+        if (isReceiverRegistered && getCurrentActivity() != null) {
+            getCurrentActivity().unregisterReceiver(receiver);
+            isReceiverRegistered = false;
+        }
+    }
+    
+    @Override
+    public void onHostResume() {
+        registerReceiverIfNecessary(mReceiver);
+    }
+    
+    @Override
+    public void onHostPause() {
+        unregisterReceiver(mReceiver);
+    }
+    
+    @Override
+    public void onHostDestroy() {
+        unregisterReceiver(mReceiver);
+    }
+    
     @ReactMethod
     public void sms(String phoneNumberString, String body, String sendType, Callback callback) {
 
