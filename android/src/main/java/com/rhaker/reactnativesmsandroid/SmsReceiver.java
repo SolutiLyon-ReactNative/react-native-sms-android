@@ -1,4 +1,4 @@
-package com.centaurwarchief.smslistener;
+package com.rhaker.reactnativesmsandroid;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
