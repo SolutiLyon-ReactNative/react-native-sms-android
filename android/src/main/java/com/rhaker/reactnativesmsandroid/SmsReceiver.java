@@ -36,7 +36,7 @@ public class SmsReceiver extends BroadcastReceiver {
         }
 
         Log.d(
-            SmsListenerPackage.TAG,
+            RNSmsAndroidModule.TAG,
             String.format("%s: %s", message.getOriginatingAddress(), message.getMessageBody())
         );
 
@@ -73,7 +73,7 @@ public class SmsReceiver extends BroadcastReceiver {
                 receiveMessage(SmsMessage.createFromPdu((byte[]) pdu));
             }
         } catch (Exception e) {
-            Log.e(SmsListenerPackage.TAG, e.getMessage());
+            Log.e(RNSmsAndroidModule.TAG, e.getMessage());
         }
     }
 }
