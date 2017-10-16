@@ -25,12 +25,13 @@ import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
+import com.facebook.react.bridge.LifecycleEventListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-public class RNSmsAndroidModule extends ReactContextBaseJavaModule {
+public class RNSmsAndroidModule extends ReactContextBaseJavaModule implements LifecycleEventListener {
     private static final String TAG = RNSmsAndroidModule.class.getSimpleName();
 
     private ReactApplicationContext reactContext;
