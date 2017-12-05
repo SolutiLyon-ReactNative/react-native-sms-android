@@ -4,11 +4,14 @@ import type ReceivedSmsMessage from "./js/ReceivedSmsMessage";
 
 const SMS_RECEIVED_EVENT = "com.rhaker.reactnativesmsandroid:smsReceived";
 
-export function addSmsListener(listener: (message: ReceivedSmsMessage) => void): CancellableSubscription {
+function addSmsListener(listener: (message: ReceivedSmsMessage) => void): CancellableSubscription {
     return DeviceEventEmitter.addListener(
 	SMS_RECEIVED_EVENT,
 	listener
     );
 }
 
-module.exports = NativeModules.SmsAndroid
+module.exports = {
+    SmsAndroid: NativeModules.SmsAndroid,
+    addSmsListener
+};
