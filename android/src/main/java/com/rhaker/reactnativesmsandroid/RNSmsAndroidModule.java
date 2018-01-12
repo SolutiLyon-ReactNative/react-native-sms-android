@@ -1,9 +1,12 @@
 package com.rhaker.reactnativesmsandroid;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ContentValues;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -14,6 +17,7 @@ import android.telephony.SmsManager;
 import android.util.Log;
 import android.database.Cursor;
 
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
 import java.lang.SecurityException;
@@ -21,6 +25,7 @@ import java.lang.String;
 
 import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.NativeModule;
+import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
@@ -104,7 +109,8 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule implements Li
 
             try {
                 SmsManager smsManager = SmsManager.getDefault();
-                smsManager.sendTextMessage(phoneNumberString,null,body,null,null);
+                ArrayList<String> smsParts = smsManager.divideMessage(body);
+                smsManager.sendMultipartTextMessage(phoneNumberString, null, smsParts, null, null);
                 callback.invoke(null,"success");
             }
 
@@ -142,6 +148,104 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule implements Li
 
         }
 
+    }
+
+    @ReactMethod
+    public void checkIfIsDefaultSmsApp(Promise promise) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                final String myPackageName = getReactApplicationContext().getPackageName();
+                promise.resolve(
+                        Telephony.Sms.getDefaultSmsPackage(
+                                getCurrentActivity()
+                        ).equals(myPackageName)
+                );
+            }
+            else {
+                promise.resolve(true);
+            }
+        }
+        catch (Exception ex) {
+            promise.reject("default_sms_app_check_error", ex);
+        }
+    }
+
+    @ReactMethod
+    public void askDefaultSmsAppCapabilities(final Promise promise) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                final String myPackageName = getReactApplicationContext().getPackageName();
+
+                AlertDialog.Builder builder = new AlertDialog.Builder(getCurrentActivity());
+                builder.setMessage("Please, accept this app as default SMS application");
+                builder.setCancelable(false);
+
+                builder.setPositiveButton(
+                        "Accept",
+                        new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                try {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                                        Intent intent =
+                                                new Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT);
+                                        intent.putExtra(
+                                                Telephony.Sms.Intents.EXTRA_PACKAGE_NAME,
+                                                myPackageName
+                                        );
+                                        getCurrentActivity().startActivity(intent);
+                                    }
+                                    promise.resolve("asked");
+                                }
+                                catch (Exception ex) {
+                                    promise.reject("sms_default_app_dialog_error", ex);
+                                }
+                                dialog.cancel();
+                            }
+                        }
+                );
+
+                builder.setNegativeButton(
+                        "Cancel",
+                        new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                promise.reject(
+                                        "sms_default_app_dialog_rejected",
+                                        new Exception("User rejected dialog")
+                                );
+                                dialog.cancel();
+                            }
+                        }
+                );
+
+                builder.show();
+            }
+            else {
+                promise.resolve("skd_not_require_this");
+            }
+        }
+        catch (Exception ex) {
+            promise.reject("sms_default_app_dialog_error", ex);
+        }
+    }
+
+    @ReactMethod
+    public void markAsRead(String id, Promise promise) {
+        try {
+            ContentValues values = new ContentValues();
+            values.put("read", "1");
+
+            Uri uri = Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT ?
+                    Telephony.Sms.Inbox.CONTENT_URI : Uri.parse("content://sms/inbox");
+
+            getReactApplicationContext().getContentResolver().update(uri, values, "_id="+id, null);
+
+            promise.resolve("success");
+        }
+        catch (Exception ex) {
+            promise.reject("mark_as_read_error", ex);
+        }
     }
 
     @ReactMethod
