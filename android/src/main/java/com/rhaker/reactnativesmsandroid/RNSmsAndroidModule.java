@@ -17,7 +17,9 @@ import android.telephony.SmsManager;
 import android.util.Log;
 import android.database.Cursor;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.HashMap;
 import java.lang.SecurityException;
@@ -31,6 +33,7 @@ import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import com.facebook.react.bridge.LifecycleEventListener;
+import com.facebook.react.bridge.WritableNativeMap;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -102,21 +105,35 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule implements Li
     }
     
     @ReactMethod
-    public void sms(String phoneNumberString, String body, String sendType, Callback callback) {
+    public void sms(
+            String phoneNumberString,
+            String body,
+            Boolean waitDelivery,
+            int timeOut,
+            String sendType,
+            Callback callback) {
 
         // send directly if user requests and android greater than 4.4
         if ((sendType.equals("sendDirect")) && (body != null) && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT)) {
-
             try {
-                SmsManager smsManager = SmsManager.getDefault();
-                ArrayList<String> smsParts = smsManager.divideMessage(body);
-                smsManager.sendMultipartTextMessage(phoneNumberString, null, smsParts, null, null);
-                callback.invoke(null,"success");
+                Context appContext = getReactApplicationContext();
+                SmsSender smsSender = new SmsSender(
+                        phoneNumberString,
+                        body,
+                        waitDelivery,
+                        timeOut,
+                        appContext,
+                        callback
+                );
+                smsSender.sendSmsWithDeliveryReport();
             }
 
             catch (Exception e) {
-                callback.invoke(null,"error");
+                WritableNativeMap result = new WritableNativeMap();
                 e.printStackTrace();
+                result.putBoolean("success", false);
+                result.putString("error", e.getMessage());
+                callback.invoke(result);
             }
 
         } else {
