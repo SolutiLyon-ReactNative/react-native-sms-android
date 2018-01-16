@@ -108,7 +108,6 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule implements Li
     public void sms(
             String phoneNumberString,
             String body,
-            Boolean waitDelivery,
             int timeOut,
             String sendType,
             Callback callback) {
@@ -120,7 +119,6 @@ public class RNSmsAndroidModule extends ReactContextBaseJavaModule implements Li
                 SmsSender smsSender = new SmsSender(
                         phoneNumberString,
                         body,
-                        waitDelivery,
                         timeOut,
                         appContext,
                         callback

@@ -3,9 +3,13 @@ package com.rhaker.reactnativesmsandroid;
 import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Telephony;
 import android.telephony.SmsManager;
 import android.util.Log;
 
@@ -13,6 +17,8 @@ import com.facebook.react.bridge.Callback;
 import com.facebook.react.bridge.WritableNativeMap;
 
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -24,18 +30,16 @@ public class SmsSender {
 
     private String phoneNumber;
     private ArrayList<String> smsParts;
+    private String smsBody;
 
     private Context context;
     private SmsManager smsManager;
 
-    private final String sentAction = "SMS_SENT";
-    private final String deliveredAction = "SMS_DELIVERED";
+    private String sentAction = "SMS_SENT_";
 
     private PendingIntent sentPI;
-    private PendingIntent deliveredPI;
 
     private BroadcastReceiver sentReceiver;
-    private BroadcastReceiver deliverReceiver;
 
     private Callback callback;
     private int successSentPartCount = 0;
@@ -43,40 +47,51 @@ public class SmsSender {
     private Boolean isSending = false;
     private Timer timer = new Timer();
     private int deliveryTimeout = 15*1000;
-    private Boolean needToWaitDeliveryReport = true;
 
     public SmsSender(
             String mPhoneNumber,
             String mMessageBody,
-            Boolean waitDelivery,
             int timeout,
             Context mContext,
             Callback mCallback) {
         phoneNumber = mPhoneNumber;
-        needToWaitDeliveryReport = waitDelivery;
         deliveryTimeout = timeout;
         context = mContext;
         callback = mCallback;
 
         smsManager = SmsManager.getDefault();
+        smsBody = mMessageBody;
         smsParts = this.smsManager.divideMessage(mMessageBody);
 
+        String messageId = SmsSender.generateMessageId();
+        sentAction += messageId;
+
         sentPI = PendingIntent.getBroadcast(context, 0, new Intent(sentAction), 0);
-        deliveredPI = PendingIntent.getBroadcast(context, 0, new Intent(deliveredAction), 0);
 
         initializeSentReceiver();
-        initializeDeliveryReceiver();
+    }
+
+    private static String generateMessageId() {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+        StringBuilder salt = new StringBuilder();
+        Random rnd = new Random();
+        while (salt.length() < 12) {
+            int index = (int) (rnd.nextFloat() * chars.length());
+            salt.append(chars.charAt(index));
+        }
+        return salt.toString();
     }
 
     private void initializeSentReceiver() {
         sentReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                Log.d("SENT_REPORT", "Intent: " + action + ", Action: " + sentAction);
+                if (!intent.getAction().equals(sentAction)) return;
                 switch (getResultCode()) {
                     case Activity.RESULT_OK:
-                        if (!needToWaitDeliveryReport) {
-                            processSmsPartSentSuccess();
-                        }
+                        processSmsPartSentSuccess();
                         break;
                     case SmsManager.RESULT_ERROR_GENERIC_FAILURE:
                         processSmsPartSentFailure("RESULT_ERROR_GENERIC_FAILURE");
@@ -97,28 +112,9 @@ public class SmsSender {
 
     }
 
-    private void initializeDeliveryReceiver() {
-        deliverReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                switch (getResultCode()) {
-                    case Activity.RESULT_OK:
-                        processSmsPartSentSuccess();
-                        break;
-                    case Activity.RESULT_CANCELED:
-                        processSmsPartSentFailure("DELIVERY_FAILED");
-                        break;
-                }
-            }
-        };
-    }
-
     private void registerReceivers() {
         if (!receiversAreRegistered) {
             context.registerReceiver(sentReceiver, new IntentFilter(sentAction));
-            if (needToWaitDeliveryReport) {
-                context.registerReceiver(deliverReceiver, new IntentFilter(deliveredAction));
-            }
             receiversAreRegistered = true;
         }
     }
@@ -126,9 +122,6 @@ public class SmsSender {
     private void unregisterReceivers() {
         if (receiversAreRegistered) {
             context.unregisterReceiver(sentReceiver);
-            if (needToWaitDeliveryReport) {
-                context.unregisterReceiver(deliverReceiver);
-            }
             receiversAreRegistered = false;
         }
     }
@@ -149,6 +142,7 @@ public class SmsSender {
             isSending = false;
             timer.purge();
             unregisterReceivers();
+
             WritableNativeMap result = new WritableNativeMap();
             result.putBoolean("success", true);
             callback.invoke(result);
@@ -161,10 +155,8 @@ public class SmsSender {
             registerReceivers();
 
             ArrayList<PendingIntent> sentPIs = new ArrayList<>();
-            ArrayList<PendingIntent> deliveredPIs = new ArrayList<>();
             for (int i = 0; i < smsParts.size(); i++) {
                 sentPIs.add(sentPI);
-                deliveredPIs.add(deliveredPI);
             }
 
             smsManager.sendMultipartTextMessage(
@@ -172,7 +164,7 @@ public class SmsSender {
                     null,
                     smsParts,
                     sentPIs,
-                    deliveredPIs
+                    null
             );
 
             timer.schedule(new TimerTask() {
