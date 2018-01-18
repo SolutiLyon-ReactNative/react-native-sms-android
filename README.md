@@ -17,18 +17,25 @@ npm install react-native-sms-android --save
 ```js
 var SmsAndroid = require('react-native-sms-android');
 
-SmsAndroid.sms(
-  '123456789', // phone number to send sms to
-  'This is the sms text', // sms body
-  'sendDirect', // sendDirect or sendIndirect
-  (err, message) => {
-    if (err){
-      console.log("error");
-    } else {
-      console.log(message); // callback message
+sendSMS(sms) {
+        return new Promise((res, rej) => {
+            SmsAndroid.sms(
+                "+37367596566",
+                "Hello man!",
+                12*1000, // Will work only for sendDirect, and this is the timeout of the SMS after
+                // witch send will fail
+                "sendDirect",
+                (response) => {
+                    if (response.error) {
+                        rej(response.error);
+                    }
+                    else {
+                        res(response);
+                    }
+                }
+            );
+        });
     }
-  }
-);
 
 /* List SMS messages matching the filter */
 var filter = {
@@ -57,6 +64,18 @@ SmsAndroid.list(JSON.stringify(filter), (fail) => {
             console.log("-->" + obj.body);
         }
     });
+
+async doItWithPromises() {
+    // Mark an sms as read (Will work only if current app is default app)
+    await SmsAndroid.markAsRead("item_id");
+    
+    // - Check if current application is default sms app
+    const isDefaultSmsApp = await SmsAndroid.checkIfIsDefaultSmsApp();
+    if (!isDefaultSmsApp) {
+        // - Ask the user to make current app as default one
+        await SmsAndroid.askDefaultSmsAppCapabilities();
+    }
+}
 
 ```
 
@@ -141,6 +160,65 @@ public class MainApplication extends Application implements ReactApplication {
   <uses-permission android:name="android.permission.READ_SMS" />
 ...
 ```
+* if you need to make your app as default SMS app, app this also to your application, and be sure to implement
+ComposeSmsActivity in your own project
+```xml
+...
+  <!-- BroadcastReceiver that listens for incoming SMS messages -->
+          <receiver
+              android:name="com.rhaker.reactnativesmsandroid.SmsReceiver"
+              android:permission="android.permission.BROADCAST_SMS">
+              <intent-filter>
+                  <action android:name="android.provider.Telephony.SMS_DELIVER" />
+              </intent-filter>
+          </receiver>
+  
+          <!-- BroadcastReceiver that listens for incoming MMS messages -->
+          <receiver
+              android:name="com.rhaker.reactnativesmsandroid.MmsReceiver"
+              android:permission="android.permission.BROADCAST_WAP_PUSH">
+              <intent-filter>
+                  <action android:name="android.provider.Telephony.WAP_PUSH_DELIVER" />
+  
+                  <data android:mimeType="application/vnd.wap.mms-message" />
+              </intent-filter>
+          </receiver>
+  
+          <!-- Activity that allows the user to send new SMS/MMS messages -->
+          <activity android:name=".ComposeSmsActivity">
+              <intent-filter>
+                  <action android:name="android.intent.action.SEND" />
+                  <action android:name="android.intent.action.SENDTO" />
+  
+                  <category android:name="android.intent.category.DEFAULT" />
+                  <category android:name="android.intent.category.BROWSABLE" />
+  
+                  <data android:scheme="sms" />
+                  <data android:scheme="smsto" />
+                  <data android:scheme="mms" />
+                  <data android:scheme="mmsto" />
+              </intent-filter>
+          </activity>
+  
+          <!-- Service that delivers messages from the phone "quick response" -->
+          <service
+              android:name="com.rhaker.reactnativesmsandroid.HeadlessSmsSendService"
+              android:exported="true"
+              android:permission="android.permission.SEND_RESPOND_VIA_MESSAGE">
+              <intent-filter>
+                  <action android:name="android.intent.action.RESPOND_VIA_MESSAGE" />
+  
+                  <category android:name="android.intent.category.DEFAULT" />
+  
+                  <data android:scheme="sms" />
+                  <data android:scheme="smsto" />
+                  <data android:scheme="mms" />
+                  <data android:scheme="mmsto" />
+              </intent-filter>
+          </service>
+...
+```
+
 ## Additional Notes
 
 You should parse the phone number for digits only for best results. And the text message should be kept as short as possible to prevent truncation.
